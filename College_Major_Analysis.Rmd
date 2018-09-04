@@ -1,0 +1,78 @@
+---
+title: "College_Major_Analysis"
+author: "Zhengmao Zhu"
+date: "September 3, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Instruction
+Your assignment is to study how income varies across different categories of college majors. You will be using data from a study of recent college graduates. Make sure to use good practices that you have learned so far in this course and previous courses in the specialization.In particular, it is good practice to specify an analysis plan early in the process to avoid the “p-hacking” behavior of trying many analyses to find one that has desired results. If you want to learn more about “p-hacking”, you can visit https://projects.fivethirtyeight.com/p-hacking/.
+
+## Load the data
+```{r, comment=""}
+library("devtools")
+devtools::install_github("jhudsl/collegeIncome")
+library(collegeIncome)
+data(college)
+
+devtools::install_github("jhudsl/matahari")
+library(matahari)
+head(college)
+```
+
+## Clean the data
+We testify whether missing values in the dataset, factor the variable major_category.
+```{r, comment=""}
+sum(is.na(college$major_category))
+sum(is.na(college$median))
+```
+
+## Show the distribution and relationship of median of major_category
+We make the boxplot and fit the original model.
+```{r, comment=""}
+college$major_category=as.factor(college$major_category)
+model=lm(median~major_category, college)
+boxplot(median/10000~major_category, college, las=2)
+```
+
+## Show the heatmap and the significance of major_category
+We make the heatmap and find whether the significant association between college major category and income.
+```{r, comment=""}
+library(reshape2)
+library(ggplot2)
+
+p_value_matrix=matrix(, nrow=16, ncol=16)
+for (i in 1:16){
+    major_category_reorder=relevel(college$major_category, sort(as.character(unique(college$major_category)))[i])
+    fit_factor=lm(median~major_category_reorder, college)
+    p_value_raw=summary(fit_factor)$coef[,4]
+    p_value_sort=as.matrix(c(p_value_raw[1:i][-1],p_value_raw[1],p_value_raw[i:16][-1]))
+    p_value_matrix[,i]=p_value_sort
+}
+
+p_value=data.frame(p_value_matrix)
+names(p_value)=sort(as.character(unique(college$major_category)))
+p_value$ID=sort(as.character(unique(college$major_category)))
+
+p_value_final=melt(p_value)
+
+g=ggplot(data=p_value_final, aes(x=variable, y=ID, fill=value<0.05))
+g=g+geom_tile()
+g=g+theme(axis.text.x=element_text(angle=90,hjust=1))+xlab("ID") + ylab("ID")
+g=g+ggtitle("Show the relationship between category majors")
+g
+```
+
+## Show the relationship between significant factor and others
+From the results above, we find that the major_category "Business" is significant to most of other major_category. Therefore, we use the "Business" as the intercept to fit the model.
+```{r, comment=""}
+major_category_final=relevel(college$major_category, sort(as.character(unique(college$major_category)))[4])
+fit_significant=lm(median~major_category_final, college)
+summary(fit_significant)
+```
+
+From the heatmap and model results above, we know that Business is significant with Arts, Computers & Mathematics, Education, Engineering, Humanities & Liberal Arts and Social Science. However, the whole model is not significant. And between any other major categories, seldom of them have significant relationship. Therefore, except Business, any other major categories have similar incomes.
